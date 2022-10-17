@@ -7,9 +7,10 @@ ARG LIBMYSOFA_VERSION=1.3.1
 ARG LIBMYSOFA_URL="https://github.com/hoene/libmysofa/archive/refs/tags/v$LIBMYSOFA_VERSION.tar.gz"
 ARG LIBMYSOFA_SHA256=a8a8cbf7b0b2508a6932278799b9bf5c63d833d9e7d651aea4622f3bc6b992aa
 
-# bump: alpine /FROM alpine:([\d.]+)/ docker:alpine|^3
-# bump: alpine link "Release notes" https://alpinelinux.org/posts/Alpine-$LATEST-released.html
-FROM alpine:3.16.2 AS base
+# Must be specified
+ARG ALPINE_VERSION
+
+FROM alpine:${ALPINE_VERSION} AS base
 
 FROM base AS download
 ARG LIBMYSOFA_URL
@@ -31,7 +32,7 @@ COPY --from=download /tmp/libmysofa/ /tmp/libmysofa/
 WORKDIR /tmp/libmysofa/build
 RUN \
   apk add --no-cache --virtual build \
-    build-base cmake zlib-dev zlib-static && \
+    build-base cmake pkgconf zlib-dev zlib-static && \
   cmake \
     -G"Unix Makefiles" \
     -DCMAKE_VERBOSE_MAKEFILE=ON \
@@ -41,6 +42,11 @@ RUN \
     -DBUILD_TESTS=OFF \
     .. && \
   make -j$(nproc) install && \
+  # Sanity tests
+  pkg-config --exists --modversion --path libmysofa && \
+  ar -t /usr/local/lib/libmysofa.a && \
+  readelf -h /usr/local/lib/libmysofa.a && \
+  # Cleanup
   apk del build
 
 FROM scratch
